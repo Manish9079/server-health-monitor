@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server Health Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #21262d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --green:    #3fb950;
+    --yellow:   #d29922;
+    --red:      #f85149;
+    --cyan:     #58a6ff;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--cyan);
+    border: 1px solid var(--cyan);
+    padding: 4px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .pulse-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 0 rgba(63,185,80,0.7);
+    animation: pulse 2s infinite;
+    margin-left: auto;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,0.7); }
+    70%  { box-shadow: 0 0 0 10px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+  .live-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+    background: var(--accent-color);
+    transition: background 0.5s;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+  }
+  .card-title .icon { font-size: 15px; }
+
+  .status-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    transition: all 0.4s;
+  }
+  .badge-healthy  { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.3); }
+  .badge-warning  { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  .badge-critical { background: rgba(248,81,73,0.15);  color: var(--red);    border: 1px solid rgba(248,81,73,0.3); }
+
+  .big-value {
+    font-family: var(--mono);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 6px;
+    transition: color 0.4s;
+  }
+  .sub-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    font-family: var(--mono);
+  }
+
+  .bar-track {
+    background: var(--border);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.8s cubic-bezier(.4,0,.2,1), background 0.4s;
+  }
+
+  /* Log panel */
+  .log-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .log-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .log-scroll {
+    max-height: 180px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .log-entry {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--cyan); flex-shrink: 0; }
+  .log-ok   { color: var(--green); }
+  .log-warn { color: var(--yellow); }
+  .log-crit { color: var(--red); }
+
+  .footer {
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .footer span { display: flex; align-items: center; gap: 5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DEVOPS</div>
+  <h1>Server Health Monitor</h1>
+  <div class="pulse-dot"></div>
+  <span class="live-badge">LIVE</span>
+</header>
+
+<div class="grid">
+  <!-- CPU -->
+  <div class="card" id="card-cpu" style="--accent-color: var(--green)">
+    <div class="card-header">
+      <div class="card-title"><span class="icon">⚡</span> CPU Usage</div>
+      <span class="status-badge badge-healthy" id="badge-cpu">HEALTHY</span>
+    </div>
+    <div class="big-value" id="val-cpu" style="color:var(--green)">—%</div>
+    <div class="sub-label" id="sub-cpu">Checking...</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-cpu" style="width:0%;background:var(--green)"></div></div>
+  </div>
+
+  <!-- RAM -->
+  <div class="card" id="card-ram" style="--accent-color: var(--green)">
+    <div class="card-header">
+      <div class="card-title"><span class="icon">🧠</span> RAM Usage</div>
+      <span class="status-badge badge-healthy" id="badge-ram">HEALTHY</span>
+    </div>
+    <div class="big-value" id="val-ram" style="color:var(--green)">—%</div>
+    <div class="sub-label" id="sub-ram">Checking...</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-ram" style="width:0%;background:var(--green)"></div></div>
+  </div>
+
+  <!-- DISK -->
+  <div class="card" id="card-disk" style="--accent-color: var(--green)">
+    <div class="card-header">
+      <div class="card-title"><span class="icon">💾</span> Disk Usage</div>
+      <span class="status-badge badge-healthy" id="badge-disk">HEALTHY</span>
+    </div>
+    <div class="big-value" id="val-disk" style="color:var(--green)">—%</div>
+    <div class="sub-label" id="sub-disk">Checking...</div>
+    <div class="bar-track"><div class="bar-fill" id="bar-disk" style="width:0%;background:var(--green)"></div></div>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="log-panel">
+  <div class="log-title">📋 Event Log <span style="margin-left:auto;font-weight:400" id="log-count">0 entries</span></div>
+  <div class="log-scroll" id="log-box"></div>
+</div>
+
+<div class="footer">
+  <span>⏱ Interval: <strong style="color:var(--text)">10s</strong></span>
+  <span>🗂 Run: <strong id="run-count" style="color:var(--text)">0</strong></span>
+  <span>🕐 Last: <strong id="last-time" style="color:var(--text)">—</strong></span>
+  <span style="margin-left:auto">Thresholds: WARN ≥60% · CRIT ≥85%</span>
+</div>
+
+<script>
+const CFG = {
+  cpu:  { warn: 60, crit: 85 },
+  ram:  { warn: 70, crit: 90 },
+  disk: { warn: 75, crit: 90 },
+};
+
+const GREEN  = '#3fb950';
+const YELLOW = '#d29922';
+const RED    = '#f85149';
+
+let run = 0;
+let logs = [];
+
+function statusOf(val, cfg) {
+  if (val >= cfg.crit) return 'critical';
+  if (val >= cfg.warn) return 'warning';
+  return 'healthy';
+}
+function colorOf(s) {
+  return s === 'critical' ? RED : s === 'warning' ? YELLOW : GREEN;
+}
+
+// Simulate realistic metrics (browser can't read OS directly)
+let state = {
+  cpu:  35 + Math.random() * 20,
+  ram:  45 + Math.random() * 15,
+  disk: 55 + Math.random() * 10,
+};
+
+function nextVal(cur, min, max, drift=8) {
+  let n = cur + (Math.random() - 0.48) * drift;
+  return Math.max(min, Math.min(max, n));
+}
+
+function updateCard(id, pct, sub, cfg) {
+  const s     = statusOf(pct, cfg);
+  const color = colorOf(s);
+  const badgeClass = `badge-${s}`;
+  const label = s === 'critical' ? '🔴 CRITICAL' : s === 'warning' ? '🟡 WARNING' : '🟢 HEALTHY';
+
+  document.getElementById(`val-${id}`).textContent  = pct.toFixed(1) + '%';
+  document.getElementById(`val-${id}`).style.color  = color;
+  document.getElementById(`bar-${id}`).style.width  = pct + '%';
+  document.getElementById(`bar-${id}`).style.background = color;
+  document.getElementById(`sub-${id}`).textContent  = sub;
+
+  const badge = document.getElementById(`badge-${id}`);
+  badge.className = `status-badge ${badgeClass}`;
+  badge.textContent = label.replace(/🔴 |🟡 |🟢 /, '');
+
+  document.getElementById(`card-${id}`).style.setProperty('--accent-color', color);
+}
+
+function addLog(ts, cpu, ram, disk) {
+  const entry = { ts, cpu, ram, disk };
+  logs.unshift(entry);
+  if (logs.length > 50) logs.pop();
+
+  const box = document.getElementById('log-box');
+  box.innerHTML = logs.map(l => {
+    const sc = statusOf(l.cpu,  CFG.cpu);
+    const sr = statusOf(l.ram,  CFG.ram);
+    const sd = statusOf(l.disk, CFG.disk);
+    const cls = s => s === 'critical' ? 'log-crit' : s === 'warning' ? 'log-warn' : 'log-ok';
+    return `<div class="log-entry">
+      <span class="log-time">${l.ts}</span>
+      <span class="${cls(sc)}">CPU ${l.cpu.toFixed(1)}%</span>
+      <span class="${cls(sr)}">RAM ${l.ram.toFixed(1)}%</span>
+      <span class="${cls(sd)}">DISK ${l.disk.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+  document.getElementById('log-count').textContent = logs.length + ' entries';
+}
+
+function tick() {
+  run++;
+  state.cpu  = nextVal(state.cpu,  5, 98, 12);
+  state.ram  = nextVal(state.ram,  30, 95, 5);
+  state.disk = nextVal(state.disk, 40, 92, 2);
+
+  const now = new Date().toLocaleTimeString();
+
+  updateCard('cpu',  state.cpu,  `${Math.round(state.cpu * 0.4)} of ${Math.round(state.cpu * 0.4 / state.cpu * 100)} cores active`, CFG.cpu);
+  updateCard('ram',  state.ram,  `${(state.ram * 0.16).toFixed(1)} GB / 16 GB used`, CFG.ram);
+  updateCard('disk', state.disk, `${(state.disk * 5).toFixed(0)} GB / 500 GB used`, CFG.disk);
+
+  addLog(now, state.cpu, state.ram, state.disk);
+  document.getElementById('run-count').textContent = run;
+  document.getElementById('last-time').textContent = now;
+}
+
+tick();
+setInterval(tick, 10000);
+</script>
+</body>
+</html>
